@@ -478,6 +478,117 @@ def fractional_time_and_freq_decorr(
     return 1 - np.abs(decorr_factor)
 
 
+def time_and_freq_decorr_with_continuous_phase_tracking(
+    time_resolution_s,
+    freq_resolution_hz,
+    freq_hz,
+    bl_ew_extent_m,
+    bl_ns_extent_m,
+    source_ra_offset_hr,  # Difference between zenith and source RAs
+    source_dec_deg,
+    phase_center_ra_offset_hr=0,
+    phase_center_dec_deg=39.25,
+    telescope_lat_deg=39.25,
+    omega=7.27e-5,
+    c=3e8,
+):
+    source_dec_rad = np.deg2rad(source_dec_deg)
+    source_ra_offset_rad = source_ra_offset_hr / 12 * np.pi
+    phase_center_dec_rad = np.deg2rad(phase_center_dec_deg)
+    phase_center_ra_offset_rad = phase_center_ra_offset_hr / 12 * np.pi
+    zenith_dec_rad = np.deg2rad(telescope_lat_deg)
+    u = bl_ew_extent_m * freq_hz / c
+    v = bl_ns_extent_m * freq_hz / c
+
+    l_t0, m_t0 = coordinate_transforms.ra_dec_to_l_m(
+        source_dec_rad=source_dec_rad,
+        source_ra_offset_rad=source_ra_offset_rad,
+        zenith_dec_rad=zenith_dec_rad,
+    )
+
+    a = l_t0 * u + m_t0 * v
+
+    b = (
+        omega * np.cos(source_dec_rad) * np.cos(source_ra_offset_rad) * u
+        - omega * np.cos(phase_center_dec_rad) * np.cos(phase_center_ra_offset_rad) * u
+        - omega
+        * np.sin(zenith_dec_rad)
+        * np.cos(source_dec_rad)
+        * np.sin(source_ra_offset_rad)
+        * v
+        + omega
+        * np.sin(zenith_dec_rad)
+        * np.cos(phase_center_dec_rad)
+        * np.sin(phase_center_ra_offset_rad)
+        * v
+    )
+
+    sin_func_1, cos_func_1 = scipy.special.sici(
+        np.pi * (freq_resolution_hz / freq_hz + 2) * (a + time_resolution_s * b / 2)
+        + 1j * 0
+    )
+    sin_func_2, cos_func_2 = scipy.special.sici(
+        np.pi * (freq_resolution_hz / freq_hz + 2) * (a - time_resolution_s * b / 2)
+        + 1j * 0
+    )
+    sin_func_3, cos_func_3 = scipy.special.sici(
+        np.pi * (freq_resolution_hz / freq_hz - 2) * (a + time_resolution_s * b / 2)
+        + 1j * 0
+    )
+    sin_func_4, cos_func_4 = scipy.special.sici(
+        np.pi * (freq_resolution_hz / freq_hz - 2) * (a - time_resolution_s * b / 2)
+        + 1j * 0
+    )
+
+    special_funcs = (
+        +sin_func_1
+        - sin_func_2
+        + sin_func_3
+        - sin_func_4
+        + 1j * (-cos_func_1 + cos_func_2 + cos_func_3 - cos_func_4)
+    )
+
+    decorr_visibility_normalized = special_funcs / (
+        2 * np.pi * time_resolution_s * freq_resolution_hz / freq_hz * b
+    )
+    decorr_factor = (
+        np.exp(-2 * np.pi * 1j * (l_t0 * u + m_t0 * v)) * decorr_visibility_normalized
+    )  # divide out the instantaneous visibility value
+
+    return decorr_factor
+
+
+def fractional_time_and_freq_decorr_with_continuous_phase_tracking(
+    time_resolution_s,
+    freq_resolution_hz,
+    freq_hz,
+    bl_ew_extent_m,
+    bl_ns_extent_m,
+    source_ra_offset_hr,  # Difference between zenith and source RAs
+    source_dec_deg,
+    phase_center_ra_offset_hr=0,
+    phase_center_dec_deg=39.25,
+    telescope_lat_deg=39.25,
+    omega=7.27e-5,
+    c=3e8,
+):
+    decorr_factor = time_and_freq_decorr_with_continuous_phase_tracking(
+        time_resolution_s,
+        freq_resolution_hz,
+        freq_hz,
+        bl_ew_extent_m,
+        bl_ns_extent_m,
+        source_ra_offset_hr,  # Difference between zenith and source RAs
+        source_dec_deg,
+        phase_center_ra_offset_hr=phase_center_ra_offset_hr,
+        phase_center_dec_deg=phase_center_dec_deg,
+        telescope_lat_deg=telescope_lat_deg,
+        omega=omega,
+        c=c,
+    )
+    return 1 - np.abs(decorr_factor)
+
+
 def time_and_freq_decorr_with_discrete_phase_tracking(
     total_time_interval_s,
     n_time_steps,
@@ -619,6 +730,169 @@ def fractional_time_and_freq_decorr_with_discrete_phase_tracking(
         bl_ew_extent_m,
         bl_ns_extent_m,
         source_ra_offset_hr,  # Difference between zenith and source RAs
+        source_dec_deg,
+        phase_center_ra_offset_hr=phase_center_ra_offset_hr,
+        phase_center_dec_deg=phase_center_dec_deg,
+        telescope_lat_deg=telescope_lat_deg,
+        omega=omega,
+        c=c,
+    )
+    return 1 - np.abs(decorr_factor)
+
+
+def decorr_general(
+    total_time_interval_s,
+    n_time_steps,  # Integer. If 1, assumes no phase tracking; if infinity assumes continuous phase tracking.
+    freq_resolution_hz,
+    freq_hz,
+    bl_ew_extent_m,
+    bl_ns_extent_m,
+    source_ra_offset_hr,  # Difference between zenith and source RAs
+    source_dec_deg,
+    phase_center_ra_offset_hr=0,  # Used only if n_time_steps > 1
+    phase_center_dec_deg=39.25,  # Used only if n_time_steps > 1
+    telescope_lat_deg=39.25,
+    omega=7.27e-5,
+    c=3e8,
+):
+
+    if total_time_interval_s == 0:  # Frequency decorrelation only
+        bl_length_m = np.sqrt(
+            np.abs(bl_ew_extent_m) ** 2.0 + np.abs(bl_ns_extent_m) ** 2.0
+        )
+        source_l, source_m = coordinate_transforms.ra_dec_to_l_m(
+            source_dec_rad=np.deg2rad(source_dec_deg),
+            source_ra_offset_rad=source_ra_offset_hr / 12 * np.pi,
+            zenith_dec_rad=np.deg2rad(telescope_lat_deg),
+            time_offset_s=0,
+        )
+        source_za_rad = np.arcsin(np.sqrt(source_l**2.0 + source_m**2.0))
+        decorr_factor = freq_decorr(
+            freq_resolution_hz,
+            bl_length_m,
+            source_za=source_za_rad,
+            c=c,
+        )
+        return decorr_factor
+
+    if freq_resolution_hz == 0:  # Time decorrelation only
+        if n_time_steps == 1:
+            decorr_factor = time_decorr(
+                total_time_interval_s,
+                freq_hz,
+                bl_ew_extent_m,
+                bl_ns_extent_m,
+                source_ra_offset_hr,
+                source_dec_deg,
+                telescope_lat_deg=telescope_lat_deg,
+                omega=omega,
+                c=c,
+            )
+            return decorr_factor
+        elif n_time_steps == np.inf:
+            decorr_factor = time_decorr_with_continuous_phase_tracking(
+                total_time_interval_s,
+                freq_hz,
+                bl_ew_extent_m,
+                bl_ns_extent_m,
+                source_ra_offset_hr,
+                source_dec_deg,
+                phase_center_ra_offset_hr=phase_center_ra_offset_hr,
+                phase_center_dec_deg=phase_center_dec_deg,
+                telescope_lat_deg=telescope_lat_deg,
+                omega=omega,
+                c=c,
+            )
+            return decorr_factor
+        else:
+            decorr_factor = time_decorr_with_discrete_phase_tracking(
+                total_time_interval_s,
+                n_time_steps,
+                freq_hz,
+                bl_ew_extent_m,
+                bl_ns_extent_m,
+                source_ra_offset_hr,
+                source_dec_deg,
+                phase_center_ra_offset_hr=phase_center_ra_offset_hr,
+                phase_center_dec_deg=phase_center_dec_deg,
+                telescope_lat_deg=telescope_lat_deg,
+                omega=omega,
+                c=c,
+            )
+            return decorr_factor
+
+    # Both time and frequency decorrelation
+    if n_time_steps == 1:
+        decorr_factor = time_and_freq_decorr(
+            total_time_interval_s,
+            freq_resolution_hz,
+            freq_hz,
+            bl_ew_extent_m,
+            bl_ns_extent_m,
+            source_ra_offset_hr,
+            source_dec_deg,
+            telescope_lat_deg=telescope_lat_deg,
+            c=c,
+        )
+        return decorr_factor
+    elif n_time_steps == np.inf:
+        decorr_factor = time_and_freq_decorr_with_continuous_phase_tracking(
+            total_time_interval_s,
+            freq_resolution_hz,
+            freq_hz,
+            bl_ew_extent_m,
+            bl_ns_extent_m,
+            source_ra_offset_hr,
+            source_dec_deg,
+            phase_center_ra_offset_hr=phase_center_ra_offset_hr,
+            phase_center_dec_deg=phase_center_dec_deg,
+            telescope_lat_deg=telescope_lat_deg,
+            omega=omega,
+            c=c,
+        )
+        return decorr_factor
+    else:
+        decorr_factor = time_and_freq_decorr_with_discrete_phase_tracking(
+            total_time_interval_s,
+            n_time_steps,
+            freq_resolution_hz,
+            freq_hz,
+            bl_ew_extent_m,
+            bl_ns_extent_m,
+            source_ra_offset_hr,
+            source_dec_deg,
+            phase_center_ra_offset_hr=phase_center_ra_offset_hr,
+            phase_center_dec_deg=phase_center_dec_deg,
+            telescope_lat_deg=telescope_lat_deg,
+            omega=omega,
+            c=c,
+        )
+        return decorr_factor
+
+
+def fractional_decorr_general(
+    total_time_interval_s,
+    n_time_steps,  # Integer. If 1, assumes no phase tracking; if infinity assumes continuous phase tracking.
+    freq_resolution_hz,
+    freq_hz,
+    bl_ew_extent_m,
+    bl_ns_extent_m,
+    source_ra_offset_hr,  # Difference between zenith and source RAs
+    source_dec_deg,
+    phase_center_ra_offset_hr=0,  # Used only if n_time_steps > 1
+    phase_center_dec_deg=39.25,  # Used only if n_time_steps > 1
+    telescope_lat_deg=39.25,
+    omega=7.27e-5,
+    c=3e8,
+):
+    decorr_factor = decorr_general(
+        total_time_interval_s,
+        n_time_steps,
+        freq_resolution_hz,
+        freq_hz,
+        bl_ew_extent_m,
+        bl_ns_extent_m,
+        source_ra_offset_hr,
         source_dec_deg,
         phase_center_ra_offset_hr=phase_center_ra_offset_hr,
         phase_center_dec_deg=phase_center_dec_deg,
