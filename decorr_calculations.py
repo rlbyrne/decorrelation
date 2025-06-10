@@ -5,26 +5,41 @@ import scipy
 
 def freq_decorr(
     freq_resolution_hz,
-    bl_length_m,
-    source_za=np.pi / 2,
+    bl_ew_extent_m,
+    bl_ns_extent_m,
+    source_ra_offset_hr,  # Difference between zenith and source RAs
+    source_dec_deg,
+    telescope_lat_deg=39.25,
     c=3e8,
 ):
+
+    l, m = coordinate_transforms.ra_dec_to_l_m(
+        source_dec_rad=np.deg2rad(source_dec_deg),
+        source_ra_offset_rad=source_ra_offset_hr / 12 * np.pi,
+        zenith_dec_rad=np.deg2rad(telescope_lat_deg),
+    )
     return np.sinc(
-        freq_resolution_hz * bl_length_m / c * np.sin(source_za)
+        freq_resolution_hz / c * (l * bl_ew_extent_m + m * bl_ns_extent_m)
     )  # Note that the numpy sinc function is \sin(\pi x)/(\pi x)
 
 
 def fractional_freq_decorr(
     freq_resolution_hz,
-    bl_length_m,
-    source_za=np.pi / 2,
+    bl_ew_extent_m,
+    bl_ns_extent_m,
+    source_ra_offset_hr,  # Difference between zenith and source RAs
+    source_dec_deg,
+    telescope_lat_deg=39.25,
     c=3e8,
 ):
     return 1 - np.abs(
         freq_decorr(
             freq_resolution_hz,
-            bl_length_m,
-            source_za=source_za,
+            bl_ew_extent_m,
+            bl_ns_extent_m,
+            source_ra_offset_hr,
+            source_dec_deg,
+            telescope_lat_deg=telescope_lat_deg,
             c=c,
         )
     )
@@ -757,20 +772,13 @@ def decorr_general(
 ):
 
     if total_time_interval_s == 0:  # Frequency decorrelation only
-        bl_length_m = np.sqrt(
-            np.abs(bl_ew_extent_m) ** 2.0 + np.abs(bl_ns_extent_m) ** 2.0
-        )
-        source_l, source_m = coordinate_transforms.ra_dec_to_l_m(
-            source_dec_rad=np.deg2rad(source_dec_deg),
-            source_ra_offset_rad=source_ra_offset_hr / 12 * np.pi,
-            zenith_dec_rad=np.deg2rad(telescope_lat_deg),
-            time_offset_s=0,
-        )
-        source_za_rad = np.arcsin(np.sqrt(source_l**2.0 + source_m**2.0))
         decorr_factor = freq_decorr(
             freq_resolution_hz,
-            bl_length_m,
-            source_za=source_za_rad,
+            bl_ew_extent_m,
+            bl_ns_extent_m,
+            source_ra_offset_hr,  # Difference between zenith and source RAs
+            source_dec_deg,
+            telescope_lat_deg=telescope_lat_deg,
             c=c,
         )
         return decorr_factor
