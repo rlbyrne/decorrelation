@@ -3,6 +3,19 @@ import coordinate_transforms
 import scipy
 
 
+def max_fractional_freq_decorr(
+    freq_resolution_hz,
+    bl_length_m,
+    zenith_angle_deg,
+    c=3e8,
+):
+
+    l = np.sin(np.deg2rad(zenith_angle_deg))
+    return 1 - np.abs(
+        np.sinc(freq_resolution_hz / c * l * bl_length_m)
+    )  # Note that the numpy sinc function is \sin(\pi x)/(\pi x)
+
+
 def freq_decorr(
     freq_resolution_hz,
     bl_ew_extent_m,

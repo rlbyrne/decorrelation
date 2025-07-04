@@ -146,7 +146,7 @@ def create_interactive_plot():
     int_time_slider = widgets.FloatSlider(
         value=1.5,  # Initial value
         min=0,  # Minimum value
-        max=1.5,  # Maximum value
+        max=10,  # Maximum value
         step=0.01,  # Step size
         description="Int. Time (s):",
         continuous_update=False,
