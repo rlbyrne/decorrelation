@@ -782,10 +782,11 @@ def decorr_general(
     telescope_lat_deg=39.25,
     omega=7.27e-5,
     c=3e8,
+    use_approximation=True,
 ):
 
-    if total_time_interval_s == 0:  # Frequency decorrelation only
-        decorr_factor = freq_decorr(
+    if use_approximation or total_time_interval_s == 0:  # Frequency decorrelation only
+        freq_decorr_factor = freq_decorr(
             freq_resolution_hz,
             bl_ew_extent_m,
             bl_ns_extent_m,
@@ -794,11 +795,12 @@ def decorr_general(
             telescope_lat_deg=telescope_lat_deg,
             c=c,
         )
-        return decorr_factor
+    if total_time_interval_s == 0:
+        return freq_decorr_factor
 
-    if freq_resolution_hz == 0:  # Time decorrelation only
+    if use_approximation or freq_resolution_hz == 0:  # Time decorrelation only
         if n_time_steps == 1:
-            decorr_factor = time_decorr(
+            time_decorr_factor = time_decorr(
                 total_time_interval_s,
                 freq_hz,
                 bl_ew_extent_m,
@@ -809,9 +811,8 @@ def decorr_general(
                 omega=omega,
                 c=c,
             )
-            return decorr_factor
         elif n_time_steps == np.inf:
-            decorr_factor = time_decorr_with_continuous_phase_tracking(
+            time_decorr_factor = time_decorr_with_continuous_phase_tracking(
                 total_time_interval_s,
                 freq_hz,
                 bl_ew_extent_m,
@@ -824,9 +825,8 @@ def decorr_general(
                 omega=omega,
                 c=c,
             )
-            return decorr_factor
         else:
-            decorr_factor = time_decorr_with_discrete_phase_tracking(
+            time_decorr_factor = time_decorr_with_discrete_phase_tracking(
                 total_time_interval_s,
                 n_time_steps,
                 freq_hz,
@@ -840,54 +840,56 @@ def decorr_general(
                 omega=omega,
                 c=c,
             )
-            return decorr_factor
+    if freq_resolution_hz == 0:
+        return time_decorr_factor
 
-    # Both time and frequency decorrelation
-    if n_time_steps == 1:
-        decorr_factor = time_and_freq_decorr(
-            total_time_interval_s,
-            freq_resolution_hz,
-            freq_hz,
-            bl_ew_extent_m,
-            bl_ns_extent_m,
-            source_ra_offset_hr,
-            source_dec_deg,
-            telescope_lat_deg=telescope_lat_deg,
-            c=c,
-        )
-        return decorr_factor
-    elif n_time_steps == np.inf:
-        decorr_factor = time_and_freq_decorr_with_continuous_phase_tracking(
-            total_time_interval_s,
-            freq_resolution_hz,
-            freq_hz,
-            bl_ew_extent_m,
-            bl_ns_extent_m,
-            source_ra_offset_hr,
-            source_dec_deg,
-            phase_center_ra_offset_hr=phase_center_ra_offset_hr,
-            phase_center_dec_deg=phase_center_dec_deg,
-            telescope_lat_deg=telescope_lat_deg,
-            omega=omega,
-            c=c,
-        )
-        return decorr_factor
-    else:
-        decorr_factor = time_and_freq_decorr_with_discrete_phase_tracking(
-            total_time_interval_s,
-            n_time_steps,
-            freq_resolution_hz,
-            freq_hz,
-            bl_ew_extent_m,
-            bl_ns_extent_m,
-            source_ra_offset_hr,
-            source_dec_deg,
-            phase_center_ra_offset_hr=phase_center_ra_offset_hr,
-            phase_center_dec_deg=phase_center_dec_deg,
-            telescope_lat_deg=telescope_lat_deg,
-            omega=omega,
-            c=c,
-        )
+    if use_approximation:
+        return freq_decorr_factor * time_decorr_factor
+    else:  # Both time and frequency decorrelation
+        if n_time_steps == 1:
+            decorr_factor = time_and_freq_decorr(
+                total_time_interval_s,
+                freq_resolution_hz,
+                freq_hz,
+                bl_ew_extent_m,
+                bl_ns_extent_m,
+                source_ra_offset_hr,
+                source_dec_deg,
+                telescope_lat_deg=telescope_lat_deg,
+                c=c,
+            )
+        elif n_time_steps == np.inf:
+            decorr_factor = time_and_freq_decorr_with_continuous_phase_tracking(
+                total_time_interval_s,
+                freq_resolution_hz,
+                freq_hz,
+                bl_ew_extent_m,
+                bl_ns_extent_m,
+                source_ra_offset_hr,
+                source_dec_deg,
+                phase_center_ra_offset_hr=phase_center_ra_offset_hr,
+                phase_center_dec_deg=phase_center_dec_deg,
+                telescope_lat_deg=telescope_lat_deg,
+                omega=omega,
+                c=c,
+            )
+        else:
+            decorr_factor = time_and_freq_decorr_with_discrete_phase_tracking(
+                total_time_interval_s,
+                n_time_steps,
+                freq_resolution_hz,
+                freq_hz,
+                bl_ew_extent_m,
+                bl_ns_extent_m,
+                source_ra_offset_hr,
+                source_dec_deg,
+                phase_center_ra_offset_hr=phase_center_ra_offset_hr,
+                phase_center_dec_deg=phase_center_dec_deg,
+                telescope_lat_deg=telescope_lat_deg,
+                omega=omega,
+                c=c,
+            )
+
         return decorr_factor
 
 

@@ -43,3 +43,22 @@ def ra_dec_to_l_m(
         zenith_dec_rad
     ) * np.cos(source_dec_rad) * np.cos(source_ra_offset_rad - time_offset_s * omega)
     return l, m
+
+
+def az_za_to_l_m(
+    az_vals,  # Units degrees
+    za_vals,  # Units degrees
+):
+    za_sin = np.sin(np.deg2rad(za_vals))
+    l = za_sin * np.cos(np.deg2rad(az_vals))
+    m = za_sin * np.sin(np.deg2rad(az_vals))
+    return l, m
+
+
+def l_m_to_az_za(
+    l_vals,
+    m_vals,
+):
+    za = np.arccos(np.sqrt(1 - l_vals**2 - m_vals**2))
+    az = np.arctan2(m_vals, l_vals)
+    return az, za

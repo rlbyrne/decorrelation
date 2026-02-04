@@ -51,7 +51,7 @@ def polar_contour_plot(
             textcoords="offset points",
             ha="left",
             va="center",
-            color="black",
+            color="white",
             # bbox=dict(boxstyle="round,pad=0.2", fc="yellow", alpha=0.3),
             # arrowprops=dict(
             #    arrowstyle="->", connectionstyle="arc3,rad=0.5", color="red"
@@ -77,6 +77,7 @@ def plot_decorrelation(
     phase_center_ra_offset_hr=0,
     phase_center_dec_deg=39.25,
     telescope_lat=39.25,
+    mark_north_pole=True,
 ):
     bl_ew_extent_m = bl_length * np.cos(np.radians(bl_orientation))
     bl_ns_extent_m = bl_length * np.sin(np.radians(bl_orientation))
@@ -114,6 +115,7 @@ def plot_decorrelation(
         ncontours=100,
         title=title,
         show=show,
+        mark_north_pole=mark_north_pole,
     )
 
 
@@ -137,6 +139,7 @@ def plot_decorrelation_interactive(
         phase_center_ra_offset_hr=0,
         phase_center_dec_deg=39.25,
         telescope_lat=39.25,
+        mark_north_pole=True,
     )
 
 
